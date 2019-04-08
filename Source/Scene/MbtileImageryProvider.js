@@ -56,7 +56,7 @@ define([
 
         var url = options.url;
         if (!defined(url)) {
-            url = 'https://tiles.air-suite.com/';
+            url = 'https://offline.air-suite.com/';
         }
         this._url = url;
 

@@ -975,7 +975,7 @@ define([
 
         var blobPromise;
 
-        if (this._url.indexOf("https://tiles.air-suite.com/") != -1){
+        if (this._url.indexOf("https://offline.air-suite.com/") != -1){
             blobPromise = fetchSqliteBlob();
         }else{
             blobPromise = this.fetchBlob();

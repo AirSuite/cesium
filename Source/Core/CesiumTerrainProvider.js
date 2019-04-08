@@ -318,6 +318,7 @@ define([
                 layerJsonResource = lastResource.getDerivedResource({
                     url: 'layer.json'
                 });
+                //todo get json for offline terrain
                 var parentMetadata = layerJsonResource.fetchJson();
                 return when(parentMetadata, parseMetadataSuccess, parseMetadataFailure);
             }
@@ -382,6 +383,7 @@ define([
         }
 
         function requestLayerJson() {
+          //todo get json for offline terrain
             when(layerJsonResource.fetchJson())
                 .then(metadataSuccess)
                 .otherwise(metadataFailure);
