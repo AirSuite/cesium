@@ -821,6 +821,84 @@ define([
         });
     };
 
+    function fetchSqliteBlob(){
+      return new Promise(function(resolve, reject) {
+        //url should be https://tiles.air-suite.com/dbname/z/x/y
+        var transparentPngUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQYV2NgAAIAAAUAAarVyFEAAAAASUVORK5CYII=';
+
+        let Rurl = this._url.split('/'),
+        z = Rurl[4],
+        x = Rurl[5],
+        y = Rurl[6];
+        y = (1 << z) - 1 - y;
+        //console.log(Rurl);
+        var database = Rurl[3];
+
+        if (window.AppType == "CORDOVA"){
+            if (window.openDatabases[database] === undefined) {
+                window.openDatabases[database] = window.sqlitePlugin.openDatabase({
+                    name: database + '.mbtiles',
+                    location: 2,
+                    createFromLocation: 0,
+                    androidDatabaseImplementation: 1
+                });
+            }
+
+            window.openDatabases[database].transaction(function(tx) {
+                tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
+
+                    var tileData = res.rows.item(0).tile_data64;
+                    if (tileData != undefined){
+                        if (!FeatureDetection.supportsWebP){
+                            //Because Safari doesn't support WEBP we need to convert it tiles PNG
+                            tileData = WEBPtoPNG(tileData);
+                        }else{
+                            tileData = "data:image/png;base64," + tileData;
+                        }
+                    }else{
+                        tileData = transparentPngUrl;
+                    }
+                    tileData = tileData.slice(22);
+                    resolve(new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' }));
+
+                }, function(tx, e) {
+                    reject('Database Error: ' + e.message);
+                });
+            });
+          }
+
+          if (window.AppType == "ELECTRON"){
+            if (window.openDatabases[database] === undefined) {
+                window.openDatabases[database] = new sqlite3.Database(app.getPath("userData") + '/' + database + '.mbtiles', sqlite3.OPEN_READONLY);
+            }
+
+            window.openDatabases[database].parallelize(function(){
+                window.openDatabases[database].all('SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
+                    var tileData;
+                    if (res != undefined) {
+                      if (res.length > 0) tileData = res[0].tile_data;
+                      resolve(new window.Blob([tileData], { type: 'image/png' }));
+                    }else{
+                      tileData = transparentPngUrl.slice(22);
+                      resolve(new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' }));
+                    }
+
+                });
+            });
+        }
+      });
+    }
+
+    function base64_to_uint8array(s) {
+      var byteChars = atob(s);
+      var l = byteChars.length;
+      var byteNumbers = new Array(l);
+      for (var i = 0; i < l; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      return new Uint8Array(byteNumbers);
+    }
+
     /**
      * Creates a Resource and calls fetchBlob() on it.
      *
@@ -895,7 +973,15 @@ define([
             });
         }
 
-        var blobPromise = this.fetchBlob();
+        var blobPromise;
+
+        if (this._url.indexOf("https://tiles.air-suite.com/") != -1){
+            blobPromise = fetchSqliteBlob();
+        }else{
+            blobPromise = this.fetchBlob();
+        }
+
+
         if (!defined(blobPromise)) {
             return;
         }

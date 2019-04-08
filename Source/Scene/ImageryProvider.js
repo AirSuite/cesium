@@ -31,6 +31,7 @@ define([
      * @see GoogleEarthEnterpriseMapsProvider
      * @see GridImageryProvider
      * @see MapboxImageryProvider
+     * @see MbtileImageryProvider
      * @see SingleTileImageryProvider
      * @see TileCoordinatesImageryProvider
      * @see UrlTemplateImageryProvider
