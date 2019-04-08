@@ -54,10 +54,7 @@ define([
         }
         //>>includeEnd('debug');
 
-        var url = options.url;
-        if (!defined(url)) {
-            url = 'https://offline.air-suite.com/';
-        }
+        var url = url = 'https://offline.air-suite.com/';
         this._url = url;
 
         var resource = Resource.createIfNeeded(url);
