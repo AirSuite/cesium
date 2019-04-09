@@ -821,19 +821,19 @@ define([
         });
     };
 
-    function fetchSqliteBlob(){
+    Resource.fetchSqliteBlob = function(url){
       return new Promise(function(resolve, reject) {
         //url should be https://tiles.air-suite.com/dbname/z/x/y
         var transparentPngUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQYV2NgAAIAAAUAAarVyFEAAAAASUVORK5CYII=';
 
-        let Rurl = this._url.split('/'),
+        let Rurl = url.split('/'),
         z = Rurl[4],
         x = Rurl[5],
-        y = Rurl[6];
+        y = Rurl[6].slice(0, -4);; //strip last 4 .png
         y = (1 << z) - 1 - y;
-        //console.log(Rurl);
+        console.log(url);
         var database = Rurl[3];
-
+        //throw new DeveloperError(url);
         if (window.AppType == "CORDOVA"){
             if (window.openDatabases[database] === undefined) {
                 window.openDatabases[database] = window.sqlitePlugin.openDatabase({
@@ -859,6 +859,7 @@ define([
                         tileData = transparentPngUrl;
                     }
                     tileData = tileData.slice(22);
+                    //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
                     resolve(new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' }));
 
                 }, function(tx, e) {
@@ -877,27 +878,32 @@ define([
                     var tileData;
                     if (res != undefined) {
                       if (res.length > 0) tileData = res[0].tile_data;
-                      resolve(new window.Blob([tileData], { type: 'image/png' }));
+                      //return new window.Blob([tileData], { type: 'image/png' });
+                      var blob = new window.Blob([tileData], { type: 'image/png' });
+                      resolve(blob);
                     }else{
                       tileData = transparentPngUrl.slice(22);
-                      resolve(new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' }));
+                      //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+                      var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+                      resolve(blob);
                     }
 
                 });
             });
         }
       });
+      function base64_to_uint8array(s) {
+        var byteChars = atob(s);
+        var l = byteChars.length;
+        var byteNumbers = new Array(l);
+        for (var i = 0; i < l; i++) {
+          byteNumbers[i] = byteChars.charCodeAt(i);
+        }
+        return new Uint8Array(byteNumbers);
+      }
     }
 
-    function base64_to_uint8array(s) {
-      var byteChars = atob(s);
-      var l = byteChars.length;
-      var byteNumbers = new Array(l);
-      for (var i = 0; i < l; i++) {
-        byteNumbers[i] = byteChars.charCodeAt(i);
-      }
-      return new Uint8Array(byteNumbers);
-    }
+
 
     /**
      * Creates a Resource and calls fetchBlob() on it.
@@ -976,7 +982,7 @@ define([
         var blobPromise;
 
         if (this._url.indexOf("https://offline.air-suite.com/") != -1){
-            blobPromise = fetchSqliteBlob();
+            blobPromise = Resource.fetchSqliteBlob(this._url);
         }else{
             blobPromise = this.fetchBlob();
         }
@@ -1942,24 +1948,10 @@ define([
         // See:
         //    https://bugzilla.mozilla.org/show_bug.cgi?id=1044102#c38
         //    https://bugs.chromium.org/p/chromium/issues/detail?id=580202#c10
-        Resource.supportsImageBitmapOptions()
-            .then(function(supportsImageBitmap) {
-                // We can only use ImageBitmap if we can flip on decode.
-                // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
-                if (!(supportsImageBitmap && preferImageBitmap)) {
-                    loadImageElement(url, crossOrigin, deferred);
-                    return;
-                }
-
-                return Resource.fetchBlob({
-                    url: url
-                });
-            })
+        if(url.indexOf("https://offline.air-suite.com") != -1) {
+            Resource.fetchSqliteBlob(url)
             .then(function(blob) {
-                if (!defined(blob)) {
-                    return;
-                }
-
+                console.log(blob);
                 return Resource._Implementations.createImageBitmapFromBlob(blob, flipY);
             })
             .then(function(imageBitmap) {
@@ -1968,8 +1960,37 @@ define([
                 }
 
                 deferred.resolve(imageBitmap);
-            })
-            .otherwise(deferred.reject);
+            });
+        }else{
+            Resource.supportsImageBitmapOptions()
+                .then(function(supportsImageBitmap) {
+                    // We can only use ImageBitmap if we can flip on decode.
+                    // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
+                    if (!(supportsImageBitmap && preferImageBitmap)) {
+                        loadImageElement(url, crossOrigin, deferred);
+                        return;
+                    }
+
+                    return Resource.fetchBlob({
+                        url: url
+                    });
+                })
+                .then(function(blob) {
+                    if (!defined(blob)) {
+                        return;
+                    }
+
+                    return Resource._Implementations.createImageBitmapFromBlob(blob, flipY);
+                })
+                .then(function(imageBitmap) {
+                    if (!defined(imageBitmap)) {
+                        return;
+                    }
+
+                    deferred.resolve(imageBitmap);
+                })
+                .otherwise(deferred.reject);
+          }
     };
 
     Resource._Implementations.createImageBitmapFromBlob = function(blob, flipY) {
