@@ -654,7 +654,6 @@ define([
 
             // Remove the fragment as it's not sent with a request
             uri.fragment = undefined;
-
             resource._url = uri.resolve(new Uri(getAbsoluteUri(this._url))).toString();
         }
 
@@ -679,7 +678,6 @@ define([
         if (defined(options.retryAttempts)) {
             resource.retryAttempts = options.retryAttempts;
         }
-
         return resource;
     };
 
@@ -821,90 +819,6 @@ define([
         });
     };
 
-    Resource.fetchSqliteBlob = function(url){
-      return new Promise(function(resolve, reject) {
-        //url should be https://tiles.air-suite.com/dbname/z/x/y
-        var transparentPngUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQYV2NgAAIAAAUAAarVyFEAAAAASUVORK5CYII=';
-
-        let Rurl = url.split('/'),
-        z = Rurl[4],
-        x = Rurl[5],
-        y = Rurl[6].slice(0, -4);; //strip last 4 .png
-        y = (1 << z) - 1 - y;
-        console.log(url);
-        var database = Rurl[3];
-        //throw new DeveloperError(url);
-        if (window.AppType == "CORDOVA"){
-            if (window.openDatabases[database] === undefined) {
-                window.openDatabases[database] = window.sqlitePlugin.openDatabase({
-                    name: database + '.mbtiles',
-                    location: 2,
-                    createFromLocation: 0,
-                    androidDatabaseImplementation: 1
-                });
-            }
-
-            window.openDatabases[database].transaction(function(tx) {
-                tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
-
-                    var tileData = res.rows.item(0).tile_data64;
-                    if (tileData != undefined){
-                        if (!FeatureDetection.supportsWebP){
-                            //Because Safari doesn't support WEBP we need to convert it tiles PNG
-                            tileData = WEBPtoPNG(tileData);
-                        }else{
-                            tileData = "data:image/png;base64," + tileData;
-                        }
-                    }else{
-                        tileData = transparentPngUrl;
-                    }
-                    tileData = tileData.slice(22);
-                    //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
-                    resolve(new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' }));
-
-                }, function(tx, e) {
-                    reject('Database Error: ' + e.message);
-                });
-            });
-          }
-
-          if (window.AppType == "ELECTRON"){
-            if (window.openDatabases[database] === undefined) {
-                window.openDatabases[database] = new sqlite3.Database(app.getPath("userData") + '/' + database + '.mbtiles', sqlite3.OPEN_READONLY);
-            }
-
-            window.openDatabases[database].parallelize(function(){
-                window.openDatabases[database].all('SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
-                    var tileData;
-                    if (res != undefined) {
-                      if (res.length > 0) tileData = res[0].tile_data;
-                      //return new window.Blob([tileData], { type: 'image/png' });
-                      var blob = new window.Blob([tileData], { type: 'image/png' });
-                      resolve(blob);
-                    }else{
-                      tileData = transparentPngUrl.slice(22);
-                      //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
-                      var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
-                      resolve(blob);
-                    }
-
-                });
-            });
-        }
-      });
-      function base64_to_uint8array(s) {
-        var byteChars = atob(s);
-        var l = byteChars.length;
-        var byteNumbers = new Array(l);
-        for (var i = 0; i < l; i++) {
-          byteNumbers[i] = byteChars.charCodeAt(i);
-        }
-        return new Uint8Array(byteNumbers);
-      }
-    }
-
-
-
     /**
      * Creates a Resource and calls fetchBlob() on it.
      *
@@ -981,11 +895,8 @@ define([
 
         var blobPromise;
 
-        if (this._url.indexOf("https://offline.air-suite.com/") != -1){
-            blobPromise = Resource.fetchSqliteBlob(this._url);
-        }else{
-            blobPromise = this.fetchBlob();
-        }
+        blobPromise = this.fetchBlob();
+
 
 
         if (!defined(blobPromise)) {
@@ -1407,7 +1318,6 @@ define([
 
         var request = resource.request;
         request.url = resource.url;
-
         request.requestFunction = function() {
             var responseType = options.responseType;
             var headers = combine(options.headers, resource.headers);
@@ -1423,7 +1333,6 @@ define([
             }
             return deferred.promise;
         };
-
         var promise = RequestScheduler.request(request);
         if (!defined(promise)) {
             return;
@@ -1948,10 +1857,24 @@ define([
         // See:
         //    https://bugzilla.mozilla.org/show_bug.cgi?id=1044102#c38
         //    https://bugs.chromium.org/p/chromium/issues/detail?id=580202#c10
-        if(url.indexOf("https://offline.air-suite.com") != -1) {
-            Resource.fetchSqliteBlob(url)
+        Resource.supportsImageBitmapOptions()
+            .then(function(supportsImageBitmap) {
+                // We can only use ImageBitmap if we can flip on decode.
+                // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
+                if (!(supportsImageBitmap && preferImageBitmap)) {
+                    loadImageElement(url, crossOrigin, deferred);
+                    return;
+                }
+
+                return Resource.fetchBlob({
+                    url: url
+                });
+            })
             .then(function(blob) {
-                console.log(blob);
+                if (!defined(blob)) {
+                    return;
+                }
+
                 return Resource._Implementations.createImageBitmapFromBlob(blob, flipY);
             })
             .then(function(imageBitmap) {
@@ -1960,37 +1883,8 @@ define([
                 }
 
                 deferred.resolve(imageBitmap);
-            });
-        }else{
-            Resource.supportsImageBitmapOptions()
-                .then(function(supportsImageBitmap) {
-                    // We can only use ImageBitmap if we can flip on decode.
-                    // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
-                    if (!(supportsImageBitmap && preferImageBitmap)) {
-                        loadImageElement(url, crossOrigin, deferred);
-                        return;
-                    }
-
-                    return Resource.fetchBlob({
-                        url: url
-                    });
-                })
-                .then(function(blob) {
-                    if (!defined(blob)) {
-                        return;
-                    }
-
-                    return Resource._Implementations.createImageBitmapFromBlob(blob, flipY);
-                })
-                .then(function(imageBitmap) {
-                    if (!defined(imageBitmap)) {
-                        return;
-                    }
-
-                    deferred.resolve(imageBitmap);
-                })
-                .otherwise(deferred.reject);
-          }
+            })
+            .otherwise(deferred.reject);
     };
 
     Resource._Implementations.createImageBitmapFromBlob = function(blob, flipY) {
@@ -2061,6 +1955,271 @@ define([
             }).end();
     }
 
+    function loadWithSqlLite(url, xhr) {
+        return new Promise(function(resolve, reject){
+            if (url.indexOf("layer.json") != -1 || url.indexOf("tileset.json") != -1){
+              //url should be https://tiles.air-suite.com/dbname/*.json
+              let Rurl = url.split('/');
+              var database = Rurl[3];
+              var name = Rurl[4];
+              //throw new DeveloperError(url);
+              if (window.AppType == "CORDOVA"){
+                  if (window.openDatabases[database] === undefined) {
+                      window.openDatabases[database] = window.sqlitePlugin.openDatabase({
+                          name: database + '.mbtiles',
+                          location: 2,
+                          createFromLocation: 0,
+                          androidDatabaseImplementation: 1
+                      });
+                  }
+
+                  window.openDatabases[database].transaction(function(tx) {
+                      tx.executeSql('SELECT value FROM metadata WHERE name = ?', [name], function(tx, res) {
+                          xhr.responseType="text";
+                          xhr.response = res.rows.item(0).value;
+                          resolve();
+
+                      }, function(tx, e) {
+                          xhr.status = 404;
+                      });
+                  });
+                }
+
+                if (window.AppType == "ELECTRON"){
+                  if (window.openDatabases[database] === undefined) {
+                      window.openDatabases[database] = new sqlite3.Database(app.getPath("userData") + '/' + database + '.mbtiles', sqlite3.OPEN_READONLY);
+                  }
+
+                  window.openDatabases[database].parallelize(function(){
+                      window.openDatabases[database].all('SELECT value FROM metadata WHERE name = ?', [name], function(tx, res) {
+                          xhr.response = res[0].value;
+                          xhr.responseType="text";
+                          resolve();
+                      });
+                  });
+              }
+            }else{
+                //url should be https://tiles.air-suite.com/dbname/filename.b3dm
+
+                var transparentPngUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQYV2NgAAIAAAUAAarVyFEAAAAASUVORK5CYII=';
+                if (url.indexOf("b3dm") != -1){
+                    let Rurl = url.split('/'),
+                    datadir = Rurl[4],
+                    filename = Rurl[5];
+                    var database = Rurl[3];
+                    var type = "b3dm";
+
+                    if (window.AppType == "CORDOVA"){
+                        if (window.openDatabases[database] === undefined) {
+                            window.openDatabases[database] = window.sqlitePlugin.openDatabase({
+                                name: database + '.mbtiles',
+                                location: 2,
+                                createFromLocation: 0,
+                                androidDatabaseImplementation: 1
+                            });
+                        }
+
+                        window.openDatabases[database].transaction(function(tx) {
+                            tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM b3dm WHERE tile_name = ?', [filename], function(tx, res) {
+
+                                var tileData = res.rows.item(0).tile_data64;
+                                var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
+                                var fileReader = new FileReader();
+                                fileReader.onload = function(event) {
+                                    var nodeRequire = global.require;
+                                    var zlib = nodeRequire('zlib');
+                                    zlib.gunzip(event.target.result, function(error, resultUnzipped) {
+                                        if (error) {
+                                            xhr.status = 404;
+                                            resolve();
+                                        } else {
+                                            xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+                                            xhr.responseType="arraybuffer";
+                                            resolve();
+                                        }
+                                    });
+
+                                };
+                                fileReader.readAsArrayBuffer(blob);
+
+                            }, function(tx, e) {
+                                //xhr.error(new RequestErrorEvent());
+                            });
+                        });
+                      }
+
+                      if (window.AppType == "ELECTRON"){
+                        if (window.openDatabases[database] === undefined) {
+                            window.openDatabases[database] = new sqlite3.Database(app.getPath("userData") + '/' + database + '.mbtiles', sqlite3.OPEN_READONLY);
+                        }
+
+                        window.openDatabases[database].parallelize(function(){
+                            window.openDatabases[database].all('SELECT tile_data FROM b3dm WHERE tile_name = ?', [filename], function(tx, res) {
+                                var tileData = res[0].tile_data;
+                                var blob = new window.Blob([tileData], { type: 'application/octet-stream' });
+                                var fileReader = new FileReader();
+                                fileReader.onload = function(event) {
+                                    
+                                    var nodeRequire = global.require;
+                                    var zlib = nodeRequire('zlib');
+                                    zlib.gunzip(event.target.result, function(error, resultUnzipped) {
+                                        if (error) {
+                                            console.log(error);
+                                            xhr.status = 404;
+                                            resolve();
+                                        } else {
+                                            xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+                                            xhr.responseType="arraybuffer";
+                                            resolve();
+                                        }
+                                    });
+
+                                };
+                                fileReader.readAsArrayBuffer(blob);
+                            });
+                        });
+                    }
+                    //Not a 3dtile request
+                }else{
+                    let Rurl = url.split('/'),
+                    z = Rurl[4],
+                    x = Rurl[5],
+                    y2 = Rurl[6].split("."); // .png .terrain .b3dm
+                    let y = (1 << z) - 1 - y2[0];
+                    var database = Rurl[3];
+                    var type = y2[1];
+
+                    if (window.AppType == "CORDOVA"){
+                        if (window.openDatabases[database] === undefined) {
+                            window.openDatabases[database] = window.sqlitePlugin.openDatabase({
+                                name: database + '.mbtiles',
+                                location: 2,
+                                createFromLocation: 0,
+                                androidDatabaseImplementation: 1
+                            });
+                        }
+
+                        window.openDatabases[database].transaction(function(tx) {
+                            tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
+
+                                var tileData = res.rows.item(0).tile_data64;
+                                if (type == "terrain?v=1"){
+                                    var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
+                                    var fileReader = new FileReader();
+                                    fileReader.onload = function(event) {
+                                        var nodeRequire = global.require;
+                                        var zlib = nodeRequire('zlib');
+                                        zlib.gunzip(event.target.result, function(error, resultUnzipped) {
+                                            if (error) {
+                                                xhr.status = 404;
+                                                resolve();
+                                            } else {
+                                                xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+                                                xhr.responseType="arraybuffer";
+                                                resolve();
+                                            }
+                                        });
+
+                                    };
+                                    fileReader.readAsArrayBuffer(blob);
+                                }else{
+                                    if (tileData != undefined){
+                                        if (!FeatureDetection.supportsWebP){
+                                            //Because Safari doesn't support WEBP we need to convert it tiles PNG
+                                            tileData = WEBPtoPNG(tileData);
+                                        }else{
+                                            tileData = "data:image/png;base64," + tileData;
+                                        }
+                                    }else{
+                                        tileData = transparentPngUrl;
+                                    }
+                                    tileData = tileData.slice(22);
+                                    //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+
+                                    xhr.response = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+                                    xhr.responseType="blob";
+                                    resolve();
+                                }
+
+
+                            }, function(tx, e) {
+                                xhr.status = 404;
+                            });
+                        });
+                      }
+
+                      if (window.AppType == "ELECTRON"){
+                        if (window.openDatabases[database] === undefined) {
+                            window.openDatabases[database] = new sqlite3.Database(app.getPath("userData") + '/' + database + '.mbtiles', sqlite3.OPEN_READONLY);
+                        }
+
+                        window.openDatabases[database].parallelize(function(){
+                            window.openDatabases[database].all('SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
+                                var tileData;
+                                if (res != undefined) {
+                                  if (res.length > 0) tileData = res[0].tile_data;
+                                  //return new window.Blob([tileData], { type: 'image/png' });
+                                  if (type == "terrain?v=1"){
+                                    var blob = new window.Blob([tileData], { type: 'application/octet-stream' });
+                                    var fileReader = new FileReader();
+                                    fileReader.onload = function(event) {
+                                        var nodeRequire = global.require;
+                                        var zlib = nodeRequire('zlib');
+                                        zlib.gunzip(event.target.result, function(error, resultUnzipped) {
+                                            if (error) {
+                                                xhr.status = 404;
+                                                resolve();
+                                            } else {
+                                                xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+                                                xhr.responseType="arraybuffer";
+                                                resolve();
+                                            }
+                                        });
+
+                                    };
+                                    fileReader.readAsArrayBuffer(blob);
+
+                                  }else{
+                                      if (tileData == undefined){
+                                          tileData = transparentPngUrl.slice(22);
+                                          var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+                                      }else{
+                                          var blob = new window.Blob([tileData], { type: 'image/png' });
+                                      }
+                                      xhr.responseType="blob";
+                                      xhr.response = blob;
+                                      resolve();
+                                  }
+                                }else{
+
+                                  //todo add empty terrain tileData.  althought this should never happen
+                                  tileData = transparentPngUrl.slice(22);
+                                  var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+                                  xhr.response = blob;
+                                  xhr.responseType="blob";
+                                  resolve();
+                                }
+
+                            });
+                        });
+                    }
+                }
+            }
+        });
+        function typedArrayToBuffer(array){
+          return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset);
+        }
+        function base64_to_uint8array(s) {
+            var byteChars = atob(s);
+            var l = byteChars.length;
+            var byteNumbers = new Array(l);
+            for (var i = 0; i < l; i++) {
+              byteNumbers[i] = byteChars.charCodeAt(i);
+            }
+            return new Uint8Array(byteNumbers);
+        }
+    }
+
     var noXMLHttpRequest = typeof XMLHttpRequest === 'undefined';
     Resource._Implementations.loadWithXhr = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
         var dataUriRegexResult = dataUriRegex.exec(url);
@@ -2068,11 +2227,85 @@ define([
             deferred.resolve(decodeDataUri(dataUriRegexResult, responseType));
             return;
         }
-
         if (noXMLHttpRequest) {
             loadWithHttpRequest(url, responseType, method, data, headers, deferred, overrideMimeType);
             return;
         }
+        // While non-standard, file protocol always returns a status of 0 on success
+        var localFile = false;
+        if (typeof url === 'string') {
+            localFile = (url.indexOf('file://') === 0) || (typeof window !== 'undefined' && window.location.origin === 'file://');
+        }
+
+        if (url.indexOf("https://offline.air-suite.com") != -1){
+            //console.log("xhr offline prop");
+            var xhr = new FakeXMLHttpRequest();
+            if (TrustedServers.contains(url)) {
+                xhr.withCredentials = true;
+            }
+
+            xhr.open(method, url, true);
+
+            if (defined(overrideMimeType) && defined(xhr.overrideMimeType)) {
+                xhr.overrideMimeType(overrideMimeType);
+            }
+
+            if (defined(headers)) {
+                for (var key in headers) {
+                    if (headers.hasOwnProperty(key)) {
+                        xhr.setRequestHeader(key, headers[key]);
+                    }
+                }
+            }
+
+            if (defined(responseType)) {
+                xhr.responseType = responseType;
+            }
+
+            xhr.onload = function() {
+                var response = xhr.response;
+                if (responseType == "text") {
+                  response = String(xhr.response);
+                  xhr.responseText = response;
+                }
+                //console.log(xhr);
+                //console.log(method);
+                if ((responseType === 'json') && typeof response === 'string') {
+                    try {
+                        deferred.resolve(JSON.parse(response));
+                    } catch (e) {
+                        deferred.reject(e);
+                    }
+                }else{
+                  deferred.resolve(response);
+                }
+            };
+
+            xhr.onerror = function(e) {
+                deferred.reject(new RequestErrorEvent());
+            };
+            xhr.abort = function(){
+                deferred.resolve();
+            }
+
+            loadWithSqlLite(url, xhr).then(function(e){
+              //console.log("call xhr onload");
+              var responseHeaders = {};
+              //console.log(responseType);
+              if (responseType == "text") responseHeaders = {"Content-Type": "application/json"};
+              if (responseType == "blob") responseHeaders = {"Content-Type": "image/png"};
+              if (responseType == "arraybuffer") responseHeaders = {"Content-Type": "application/octet-stream"};
+              //if (url.indexOf("https://offline.air-suite.com") != -1){
+              //console.log(responseHeaders);
+
+              xhr.respond(200,responseHeaders,xhr.response);
+
+
+            });
+            xhr.send(data);
+            return xhr;
+        }
+
 
         var xhr = new XMLHttpRequest();
 
@@ -2098,11 +2331,7 @@ define([
             xhr.responseType = responseType;
         }
 
-        // While non-standard, file protocol always returns a status of 0 on success
-        var localFile = false;
-        if (typeof url === 'string') {
-            localFile = (url.indexOf('file://') === 0) || (typeof window !== 'undefined' && window.location.origin === 'file://');
-        }
+
 
         xhr.onload = function() {
             if ((xhr.status < 200 || xhr.status >= 300) && !(localFile && xhr.status === 0)) {
@@ -2112,7 +2341,7 @@ define([
 
             var response = xhr.response;
             var browserResponseType = xhr.responseType;
-
+            //console.log(method);
             if (method === 'HEAD' || method === 'OPTIONS') {
                 var responseHeaderString = xhr.getAllResponseHeaders();
                 var splitHeaders = responseHeaderString.trim().split(/[\r\n]+/);

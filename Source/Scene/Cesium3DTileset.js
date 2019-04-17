@@ -782,7 +782,6 @@ define([
 
                 that._url = resource.url;
                 that._basePath = basePath;
-
                 return Cesium3DTileset.loadJson(resource);
             })
             .then(function(tilesetJson) {
@@ -1529,6 +1528,7 @@ define([
     ///////////////////////////////////////////////////////////////////////////
 
     function requestContent(tileset, tile) {
+
         if (tile.hasEmptyContent) {
             return;
         }
@@ -1555,6 +1555,7 @@ define([
 
         tile.contentReadyToProcessPromise.then(addToProcessingQueue(tileset, tile));
         tile.contentReadyPromise.then(handleTileSuccess(tileset, tile)).otherwise(handleTileFailure(tileset, tile));
+
     }
 
     function sortRequestByPriority(a, b) {
@@ -1562,6 +1563,7 @@ define([
     }
 
     function requestTiles(tileset) {
+
         // Sort requests by priority before making any requests.
         // This makes it less likely that requests will be cancelled after being issued.
         var requestedTiles = tileset._requestedTiles;

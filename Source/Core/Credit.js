@@ -30,6 +30,7 @@ define([
      * var credit = new Cesium.Credit('<a href="https://cesiumjs.org/" target="_blank"><img src="/images/cesium_logo.png" title="Cesium"/></a>');
      */
     function Credit(html, showOnScreen) {
+        if (html == undefined) return;
         //>>includeStart('debug', pragmas.debug);
         Check.typeOf.string('html', html);
         //>>includeEnd('debug');
