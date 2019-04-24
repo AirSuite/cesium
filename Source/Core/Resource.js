@@ -2033,6 +2033,7 @@ define([
                                             xhr.status = 404;
                                             resolve();
                                         } else {
+
                                             xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
                                             xhr.responseType="arraybuffer";
                                             resolve();
@@ -2044,6 +2045,8 @@ define([
 
                             }, function(tx, e) {
                                 //xhr.error(new RequestErrorEvent());
+                                xhr.status = 404;
+                                resolve();
                             });
                         });
                       }
@@ -2059,7 +2062,7 @@ define([
                                 var blob = new window.Blob([tileData], { type: 'application/octet-stream' });
                                 var fileReader = new FileReader();
                                 fileReader.onload = function(event) {
-                                    
+
                                     var nodeRequire = global.require;
                                     var zlib = nodeRequire('zlib');
                                     zlib.gunzip(event.target.result, function(error, resultUnzipped) {
@@ -2068,6 +2071,7 @@ define([
                                             xhr.status = 404;
                                             resolve();
                                         } else {
+                                            //console.log(filename);
                                             xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
                                             xhr.responseType="arraybuffer";
                                             resolve();
