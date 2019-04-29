@@ -104,8 +104,9 @@ define([
 
     function getWorkerUrl(moduleID) {
         var url = buildModuleUrl(moduleID);
-
-        if (isCrossOriginUrl(url)) {
+        
+        if (true) { //force cross origin worker urls for iOS debugging
+        //if (isCrossOriginUrl(url)) {
             //to load cross-origin, create a shim worker from a blob URL
             var script = 'importScripts("' + url + '");';
 
