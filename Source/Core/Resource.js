@@ -1976,6 +1976,7 @@ define([
                   window.openDatabases[database].transaction(function(tx) {
                       tx.executeSql('SELECT value FROM metadata WHERE name = ?', [name], function(tx, res) {
                           xhr.responseType="text";
+                          console.log("GotMetadata");
                           xhr.response = res.rows.item(0).value;
                           resolve();
 
@@ -2021,8 +2022,14 @@ define([
 
                         window.openDatabases[database].transaction(function(tx) {
                             tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM b3dm WHERE tile_name = ?', [filename], function(tx, res) {
-
+                                console.log("b3dmget");
                                 var tileData = res.rows.item(0).tile_data64;
+                                var gunzip = new Zlib.Gunzip(base64_to_uint8array(tileData));
+                                var resultUnzipped = gunzip.decompress();
+                                xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+                                xhr.responseType="arraybuffer";
+                                resolve();
+                                /*
                                 var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
                                 var fileReader = new FileReader();
                                 fileReader.onload = function(event) {
@@ -2030,10 +2037,11 @@ define([
                                     var zlib = nodeRequire('zlib');
                                     zlib.gunzip(event.target.result, function(error, resultUnzipped) {
                                         if (error) {
+                                            console.log("b3dmunziperror");
                                             xhr.status = 404;
                                             resolve();
                                         } else {
-
+                                            console.log("b3dmsuccess");
                                             xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
                                             xhr.responseType="arraybuffer";
                                             resolve();
@@ -2042,9 +2050,10 @@ define([
 
                                 };
                                 fileReader.readAsArrayBuffer(blob);
-
+                                */
                             }, function(tx, e) {
                                 //xhr.error(new RequestErrorEvent());
+                                console.log("b3dmerror");
                                 xhr.status = 404;
                                 resolve();
                             });
@@ -2105,19 +2114,27 @@ define([
 
                         window.openDatabases[database].transaction(function(tx) {
                             tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
-
+                                console.log("gettile");
                                 var tileData = res.rows.item(0).tile_data64;
                                 if (type == "terrain?v=1"){
-                                    var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
+                                    //var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
+                                    var gunzip = new Zlib.Gunzip(base64_to_uint8array(tileData));
+                                    var resultUnzipped = gunzip.decompress();
+                                    xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+                                    xhr.responseType="arraybuffer";
+                                    resolve();
+                                    /*
                                     var fileReader = new FileReader();
                                     fileReader.onload = function(event) {
                                         var nodeRequire = global.require;
                                         var zlib = nodeRequire('zlib');
                                         zlib.gunzip(event.target.result, function(error, resultUnzipped) {
                                             if (error) {
+                                                console.log("tileunziperror");
                                                 xhr.status = 404;
                                                 resolve();
                                             } else {
+                                                console.log("terraintileload");
                                                 xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
                                                 xhr.responseType="arraybuffer";
                                                 resolve();
@@ -2126,6 +2143,7 @@ define([
 
                                     };
                                     fileReader.readAsArrayBuffer(blob);
+                                    */
                                 }else{
                                     if (tileData != undefined){
                                         if (!FeatureDetection.supportsWebP){
@@ -2139,7 +2157,7 @@ define([
                                     }
                                     tileData = tileData.slice(22);
                                     //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
-
+                                    console.log("loadpngtile");
                                     xhr.response = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
                                     xhr.responseType="blob";
                                     resolve();
@@ -2147,7 +2165,9 @@ define([
 
 
                             }, function(tx, e) {
+                                consoel.log("tileloaderror");
                                 xhr.status = 404;
+                                resolve();
                             });
                         });
                       }
