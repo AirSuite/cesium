@@ -108,7 +108,7 @@ define([
         if (isCrossOriginUrl(url) || IOS) {
             //to load cross-origin, create a shim worker from a blob URL
             var script = 'importScripts("' + url + '");';
-
+            console.log(url);
             var blob;
             try {
                 blob = new Blob([script], {
