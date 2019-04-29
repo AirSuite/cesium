@@ -29,6 +29,11 @@ define([
     'use strict';
 
     function canTransferArrayBuffer() {
+        if (IOS){
+            //so all requests for offline tiles don't go through the worker
+            TaskProcessor._canTransferArrayBuffer = false;
+            return TaskProcessor._canTransferArrayBuffer;
+        }
         if (!defined(TaskProcessor._canTransferArrayBuffer)) {
             var worker = new Worker(getWorkerUrl('Workers/transferTypedArrayTest.js'));
             worker.postMessage = defaultValue(worker.webkitPostMessage, worker.postMessage);
