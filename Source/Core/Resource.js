@@ -1833,10 +1833,13 @@ define([
         var image = new Image();
 
         image.onload = function() {
+            console.log("ImageLoaded");
             deferred.resolve(image);
         };
 
         image.onerror = function(e) {
+            console.log("ImageError");
+            console.log(e);
             deferred.reject(e);
         };
 
@@ -1857,13 +1860,19 @@ define([
         // See:
         //    https://bugzilla.mozilla.org/show_bug.cgi?id=1044102#c38
         //    https://bugs.chromium.org/p/chromium/issues/detail?id=580202#c10
+        var bypass = false;
         Resource.supportsImageBitmapOptions()
             .then(function(supportsImageBitmap) {
                 // We can only use ImageBitmap if we can flip on decode.
                 // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
+
                 if (!(supportsImageBitmap && preferImageBitmap)) {
-                    loadImageElement(url, crossOrigin, deferred);
-                    return;
+                    if (url.indexOf("https://offline.air-suite.com") == -1){
+                      loadImageElement(url, crossOrigin, deferred);
+                      return;
+                    }else{
+                      bypass = true;
+                    }
                 }
 
                 return Resource.fetchBlob({
@@ -1874,8 +1883,13 @@ define([
                 if (!defined(blob)) {
                     return;
                 }
-
-                return Resource._Implementations.createImageBitmapFromBlob(blob, flipY);
+                if (bypass) {
+                    console.log("return bypass");
+                    loadImageElement(blob, false, deferred);
+                    return;
+                }else{
+                  return Resource._Implementations.createImageBitmapFromBlob(blob, flipY);
+                }
             })
             .then(function(imageBitmap) {
                 if (!defined(imageBitmap)) {
@@ -1976,12 +1990,12 @@ define([
                   window.openDatabases[database].transaction(function(tx) {
                       tx.executeSql('SELECT value FROM metadata WHERE name = ?', [name], function(tx, res) {
                           xhr.responseType="text";
-                          console.log("GotMetadata");
                           xhr.response = res.rows.item(0).value;
                           resolve();
 
                       }, function(tx, e) {
                           xhr.status = 404;
+                          resolve();
                       });
                   });
                 }
@@ -2029,28 +2043,7 @@ define([
                                 xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
                                 xhr.responseType="arraybuffer";
                                 resolve();
-                                /*
-                                var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
-                                var fileReader = new FileReader();
-                                fileReader.onload = function(event) {
-                                    var nodeRequire = global.require;
-                                    var zlib = nodeRequire('zlib');
-                                    zlib.gunzip(event.target.result, function(error, resultUnzipped) {
-                                        if (error) {
-                                            console.log("b3dmunziperror");
-                                            xhr.status = 404;
-                                            resolve();
-                                        } else {
-                                            console.log("b3dmsuccess");
-                                            xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
-                                            xhr.responseType="arraybuffer";
-                                            resolve();
-                                        }
-                                    });
 
-                                };
-                                fileReader.readAsArrayBuffer(blob);
-                                */
                             }, function(tx, e) {
                                 //xhr.error(new RequestErrorEvent());
                                 console.log("b3dmerror");
@@ -2090,7 +2083,10 @@ define([
                                 };
                                 fileReader.readAsArrayBuffer(blob);
                             });
-                        });
+                        }, function (err){
+                            xhr.status = 404;
+                            resolve();
+                      	});
                     }
                     //Not a 3dtile request
                 }else{
@@ -2114,62 +2110,45 @@ define([
 
                         window.openDatabases[database].transaction(function(tx) {
                             tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?', [z, x, y], function(tx, res) {
-                                console.log("gettile");
+
                                 var tileData = res.rows.item(0).tile_data64;
+
                                 if (type == "terrain?v=1"){
                                     //var blob = new window.Blob([base64_to_uint8array(tileData)], { type: 'application/octet-stream' });
                                     var gunzip = new Zlib.Gunzip(base64_to_uint8array(tileData));
                                     var resultUnzipped = gunzip.decompress();
                                     xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
+
                                     xhr.responseType="arraybuffer";
                                     resolve();
-                                    /*
-                                    var fileReader = new FileReader();
-                                    fileReader.onload = function(event) {
-                                        var nodeRequire = global.require;
-                                        var zlib = nodeRequire('zlib');
-                                        zlib.gunzip(event.target.result, function(error, resultUnzipped) {
-                                            if (error) {
-                                                console.log("tileunziperror");
-                                                xhr.status = 404;
-                                                resolve();
-                                            } else {
-                                                console.log("terraintileload");
-                                                xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
-                                                xhr.responseType="arraybuffer";
-                                                resolve();
-                                            }
-                                        });
 
-                                    };
-                                    fileReader.readAsArrayBuffer(blob);
-                                    */
                                 }else{
                                     if (tileData != undefined){
-                                        if (!FeatureDetection.supportsWebP){
+                                        if (IOS && url.indexOf("Satellite") == -1){
+                                          //console.log("convertWebP");
                                             //Because Safari doesn't support WEBP we need to convert it tiles PNG
                                             tileData = WEBPtoPNG(tileData);
                                         }else{
-                                            tileData = "data:image/png;base64," + tileData;
+                                            tileData = "data:image/png;base64," +tileData;
                                         }
                                     }else{
+                                        //console.log("returnBlankTile");
                                         tileData = transparentPngUrl;
                                     }
-                                    tileData = tileData.slice(22);
-                                    //return new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
-                                    console.log("loadpngtile");
-                                    xhr.response = new window.Blob([base64_to_uint8array(tileData)], { type: 'image/png' });
+
+                                    xhr.response = tileData;
                                     xhr.responseType="blob";
                                     resolve();
                                 }
 
-
                             }, function(tx, e) {
-                                consoel.log("tileloaderror");
                                 xhr.status = 404;
                                 resolve();
                             });
-                        });
+                        }, function (err){
+                            xhr.status = 404;
+                            resolve();
+                      	});
                       }
 
                       if (window.AppType == "ELECTRON"){
