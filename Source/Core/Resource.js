@@ -1833,13 +1833,10 @@ define([
         var image = new Image();
 
         image.onload = function() {
-            console.log("ImageLoaded");
             deferred.resolve(image);
         };
 
         image.onerror = function(e) {
-            console.log("ImageError");
-            console.log(e);
             deferred.reject(e);
         };
 
@@ -1867,7 +1864,7 @@ define([
                 // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
 
                 if (!(supportsImageBitmap && preferImageBitmap)) {
-                    if (url.indexOf("https://offline.air-suite.com") == -1){
+                    if (url.indexOf("https://offline.air-suite.com") == -1) {
                       loadImageElement(url, crossOrigin, deferred);
                       return;
                     }else{
@@ -1884,7 +1881,6 @@ define([
                     return;
                 }
                 if (bypass) {
-                    console.log("return bypass");
                     loadImageElement(blob, false, deferred);
                     return;
                 }else{
@@ -2036,7 +2032,6 @@ define([
 
                         window.openDatabases[database].transaction(function(tx) {
                             tx.executeSql('SELECT BASE64(tile_data) AS tile_data64 FROM b3dm WHERE tile_name = ?', [filename], function(tx, res) {
-                                console.log("b3dmget");
                                 var tileData = res.rows.item(0).tile_data64;
                                 var gunzip = new Zlib.Gunzip(base64_to_uint8array(tileData));
                                 var resultUnzipped = gunzip.decompress();
@@ -2046,7 +2041,6 @@ define([
 
                             }, function(tx, e) {
                                 //xhr.error(new RequestErrorEvent());
-                                console.log("b3dmerror");
                                 xhr.status = 404;
                                 resolve();
                             });
@@ -2137,6 +2131,7 @@ define([
                                     }
 
                                     xhr.response = tileData;
+                                    if (!IOS) xhr.response = new window.Blob([base64_to_uint8array(tileData.slice(22))], { type: 'image/png' });
                                     xhr.responseType="blob";
                                     resolve();
                                 }
@@ -2287,9 +2282,6 @@ define([
             xhr.onerror = function(e) {
                 deferred.reject(new RequestErrorEvent());
             };
-            xhr.abort = function(){
-                deferred.resolve();
-            }
 
             loadWithSqlLite(url, xhr).then(function(e){
               //console.log("call xhr onload");
@@ -2300,9 +2292,17 @@ define([
               if (responseType == "arraybuffer") responseHeaders = {"Content-Type": "application/octet-stream"};
               //if (url.indexOf("https://offline.air-suite.com") != -1){
               //console.log(responseHeaders);
+              if (xhr.aborted == true){
+                  //do nothing
+                  xhr.responseText = null;
+                  xhr.errorFlag = true;
+                  xhr.requestHeaders = {};
+                  console.log("db xhr aborted");
+              }else{
 
-              xhr.respond(200,responseHeaders,xhr.response);
+                xhr.respond(200,responseHeaders,xhr.response);
 
+              }
 
             });
             xhr.send(data);
