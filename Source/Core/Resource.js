@@ -2131,7 +2131,7 @@ define([
 
                                 }else{
                                     if (tileData != undefined){
-                                        if (IOS && url.indexOf("Satellite") == -1){
+                                        if (IOS){
                                           //console.log("convertWebP");
                                             //Because Safari doesn't support WEBP we need to convert it tiles PNG
                                             tileData = WEBPtoPNG(tileData);
@@ -2296,6 +2296,7 @@ define([
                 deferred.reject(new RequestErrorEvent());
             };
 
+            xhr.send(data);
             loadWithSqlLite(url, xhr).then(function(e){
               //console.log("call xhr onload");
               var responseHeaders = {};
@@ -2305,12 +2306,12 @@ define([
               if (responseType == "arraybuffer") responseHeaders = {"Content-Type": "application/octet-stream"};
               //if (url.indexOf("https://offline.air-suite.com") != -1){
               //console.log(responseHeaders);
-              if (xhr.aborted == true){
+              if (xhr.aborted === true){
                   //do nothing
                   xhr.responseText = null;
                   xhr.errorFlag = true;
                   xhr.requestHeaders = {};
-                  console.log("db xhr aborted");
+                  //console.log("db xhr aborted: " + url);
               }else{
 
                 xhr.respond(200,responseHeaders,xhr.response);
@@ -2318,10 +2319,10 @@ define([
               }
 
             });
-            xhr.send(data);
-            return xhr;
-        }
 
+            return xhr;
+
+        }
 
         var xhr = new XMLHttpRequest();
 
