@@ -10,7 +10,6 @@ define([
         './defineProperties',
         './DeveloperError',
         './freezeObject',
-        './FeatureDetection',
         './getAbsoluteUri',
         './getBaseUri',
         './getExtensionFromUri',
@@ -38,7 +37,6 @@ define([
         defineProperties,
         DeveloperError,
         freezeObject,
-        FeatureDetection,
         getAbsoluteUri,
         getBaseUri,
         getExtensionFromUri,
@@ -932,9 +930,11 @@ define([
                 if (!defined(image)) {
                     return;
                 }
-                // This is because the blob object is needed for DiscardMissingTileImagePolicy
-                // See https://github.com/AnalyticalGraphicsInc/cesium/issues/1353
+
+                // The blob object may be needed for use by a TileDiscardPolicy,
+                // so attach it to the image.
                 image.blob = generatedBlob;
+
                 if (useImageBitmap) {
                     return image;
                 }
@@ -947,8 +947,10 @@ define([
                     window.URL.revokeObjectURL(generatedBlobResource.url);
                 }
 
-                // If the blob load succeeded but the image decode failed, provide access to the blob on the error object because it may provide useful insight.
-                // In particular, BingMapsImageryProvider uses this to detect the zero-length "image" that some map styles return when a real tile is not available.
+                // If the blob load succeeded but the image decode failed, attach the blob
+                // to the error object for use by a TileDiscardPolicy.
+                // In particular, BingMapsImageryProvider uses this to detect the
+                // zero-length response that is returned when a tile is not available.
                 error.blob = generatedBlob;
 
                 return when.reject(error);
@@ -982,7 +984,6 @@ define([
             }
 
             var deferred = when.defer();
-
             Resource._Implementations.createImage(url, crossOrigin, deferred, flipY, preferImageBitmap);
 
             return deferred.promise;
@@ -1874,10 +1875,12 @@ define([
 
                 return Resource.fetchBlob({
                     url: url
+
                 });
             })
             .then(function(blob) {
                 if (!defined(blob)) {
+                    deferred.reject(new RuntimeError('Successfully retrieved ' + url + ' but it contained no content.'));
                     return;
                 }
                 if (bypass) {
@@ -1895,7 +1898,11 @@ define([
                     return;
                 }
 
-                deferred.resolve(imageBitmap);
+                    return Resource.createImageBitmapFromBlob(blob, {
+                        flipY: flipY,
+                        premultiplyAlpha: false
+                    });
+                }).then(deferred.resolve);
             })
             .otherwise(deferred.reject);
     };

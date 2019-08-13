@@ -32,6 +32,7 @@ define([
      * @see GridImageryProvider
      * @see MapboxImageryProvider
      * @see MbtileImageryProvider
+     * @see MapboxStyleImageryProvider
      * @see SingleTileImageryProvider
      * @see TileCoordinatesImageryProvider
      * @see UrlTemplateImageryProvider
