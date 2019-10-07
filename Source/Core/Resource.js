@@ -1947,7 +1947,7 @@ import TrustedServers from './TrustedServers.js';
         return new Promise(function(resolve, reject){
             if (url.indexOf("layer.json") != -1 || url.indexOf("tileset.json") != -1){
               //url should be https://tiles.air-suite.com/dbname/*.json
-              let Rurl = url.split('/');
+              var Rurl = url.split('/');
               var database = Rurl[3];
               var name = Rurl[4];
               //throw new DeveloperError(url);
@@ -1992,7 +1992,7 @@ import TrustedServers from './TrustedServers.js';
 
                 var transparentPngUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQYV2NgAAIAAAUAAarVyFEAAAAASUVORK5CYII=';
                 if (url.indexOf("b3dm") != -1){
-                    let Rurl = url.split('/'),
+                    var Rurl = url.split('/'),
                     datadir = Rurl[4],
                     filename = Rurl[5];
                     var database = Rurl[3];
@@ -2062,11 +2062,11 @@ import TrustedServers from './TrustedServers.js';
                     }
                     //Not a 3dtile request
                 }else{
-                    let Rurl = url.split('/'),
+                    var Rurl = url.split('/'),
                     z = Rurl[4],
                     x = Rurl[5],
                     y2 = Rurl[6].split("."); // .png .terrain .b3dm
-                    let y = (1 << z) - 1 - y2[0];
+                    var y = (1 << z) - 1 - y2[0];
                     var database = Rurl[3];
                     var type = y2[1];
 

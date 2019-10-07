@@ -1,20 +1,11 @@
-define([
-        '../Core/Credit',
-        '../Core/defaultValue',
-        '../Core/defined',
-        '../Core/defineProperties',
-        '../Core/DeveloperError',
-        '../Core/Resource',
-        './UrlTemplateImageryProvider'
-    ], function(
-        Credit,
-        defaultValue,
-        defined,
-        defineProperties,
-        DeveloperError,
-        Resource,
-        UrlTemplateImageryProvider) {
-    'use strict';
+import Credit from '../Core/Credit.js';
+import defaultValue from '../Core/defaultValue.js';
+import defined from '../Core/defined.js';
+import defineProperties from '../Core/defineProperties.js';
+import DeveloperError from '../Core/DeveloperError.js';
+import MapboxApi from '../Core/MapboxApi.js';
+import Resource from '../Core/Resource.js';
+import UrlTemplateImageryProvider from './UrlTemplateImageryProvider.js';
 
     var trailingSlashRegex = /\/$/;
     var defaultCredit = new Credit('&copy; <a href="https://www.air-suite.com">AirSuite Inc.</a>');
@@ -345,6 +336,4 @@ define([
 
     // Exposed for tests
     MbtileImageryProvider._defaultCredit = defaultCredit;
-
-    return MbtileImageryProvider;
-});
+export default MapboxImageryProvider;
