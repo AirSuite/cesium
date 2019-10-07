@@ -1875,8 +1875,6 @@ define([
 
                 return Resource.fetchBlob({
                     url: url
-
-                });
             })
             .then(function(blob) {
                 if (!defined(blob)) {
@@ -1886,23 +1884,12 @@ define([
                 if (bypass) {
                     loadImageElement(blob, false, deferred);
                     return;
-                }else{
-                  return Resource.createImageBitmapFromBlob(blob, {
-                      flipY: flipY,
-                      premultiplyAlpha: false
-                  });
                 }
-            })
-            .then(function(imageBitmap) {
-                if (!defined(imageBitmap)) {
-                    return;
-                }
-
-                    return Resource.createImageBitmapFromBlob(blob, {
-                        flipY: flipY,
-                        premultiplyAlpha: false
-                    });
-                }).then(deferred.resolve);
+                return Resource.createImageBitmapFromBlob(blob, {
+                    flipY: flipY,
+                    premultiplyAlpha: false
+                });
+              }).then(deferred.resolve);
             })
             .otherwise(deferred.reject);
     };
