@@ -1804,7 +1804,7 @@ import TrustedServers from './TrustedServers.js';
     function loadImageElement(url, crossOrigin, deferred) {
         var image = new Image();
 
-        image.onload = function() {
+        image.onload = function() {;
             deferred.resolve(image);
         };
 
@@ -1823,6 +1823,15 @@ import TrustedServers from './TrustedServers.js';
         image.src = url;
     }
 
+    function loadImageElementIOS(blob){
+        return new Promise(function(resolve, reject) {
+            var img = document.createElement('img');
+            img.addEventListener('load', function() {
+                resolve(this);
+            });
+            img.src = blob;
+        });
+    }
     Resource._Implementations.createImage = function(url, crossOrigin, deferred, flipY, preferImageBitmap) {
         // Passing an Image to createImageBitmap will force it to run on the main thread
         // since DOM elements don't exist on workers. We convert it to a blob so it's non-blocking.
@@ -1831,38 +1840,33 @@ import TrustedServers from './TrustedServers.js';
         //    https://bugs.chromium.org/p/chromium/issues/detail?id=580202#c10
         var bypass = false;
         Resource.supportsImageBitmapOptions()
-            .then(function(supportsImageBitmap) {
-                // We can only use ImageBitmap if we can flip on decode.
-                // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
+           .then(function(supportsImageBitmap) {
+               // We can only use ImageBitmap if we can flip on decode.
+               // See: https://github.com/AnalyticalGraphicsInc/cesium/pull/7579#issuecomment-466146898
+               if (!(supportsImageBitmap && preferImageBitmap) && url.indexOf("https://offline.air-suite.com") == -1) {
+                   loadImageElement(url, crossOrigin, deferred);
+                   return;
+               }
 
-                if (!(supportsImageBitmap && preferImageBitmap)) {
-                    if (url.indexOf("https://offline.air-suite.com") == -1) {
-                      loadImageElement(url, crossOrigin, deferred);
-                      return;
-                    }else{
-                      bypass = true;
-                    }
-                }
-
-                return Resource.fetchBlob({
-                    url: url
-            })
-            .then(function(blob) {
-                if (!defined(blob)) {
-                    deferred.reject(new RuntimeError('Successfully retrieved ' + url + ' but it contained no content.'));
-                    return;
-                }
-                if (bypass) {
-                    loadImageElement(blob, false, deferred);
-                    return;
-                }
-                return Resource.createImageBitmapFromBlob(blob, {
-                    flipY: flipY,
-                    premultiplyAlpha: false
-                });
-              }).then(deferred.resolve);
-            })
-            .otherwise(deferred.reject);
+               return Resource.fetchBlob({
+                   url: url
+               })
+               .then(function(blob) {
+                   if (!defined(blob)) {
+                       deferred.reject(new RuntimeError('Successfully retrieved ' + url + ' but it contained no content.'));
+                       return;
+                   }
+                   if (!IOS){
+                     return Resource.createImageBitmapFromBlob(blob, {
+                         flipY: flipY,
+                         premultiplyAlpha: false
+                     });
+                   }else{
+                     return loadImageElementIOS(blob);
+                   }
+               }).then(deferred.resolve);
+           })
+           .otherwise(deferred.reject);
     };
 
     /**
@@ -2045,7 +2049,6 @@ import TrustedServers from './TrustedServers.js';
                                             xhr.status = 404;
                                             resolve();
                                         } else {
-                                            //console.log(filename);
                                             xhr.response = decodeResponse(resultUnzipped, 'arraybuffer');
                                             xhr.responseType="arraybuffer";
                                             resolve();
@@ -2097,20 +2100,22 @@ import TrustedServers from './TrustedServers.js';
                                 }else{
                                     if (tileData != undefined){
                                         if (IOS){
-                                          //console.log("convertWebP");
                                             //Because Safari doesn't support WEBP we need to convert it tiles PNG
                                             tileData = WEBPtoPNG(tileData);
                                         }else{
                                             tileData = "data:image/png;base64," +tileData;
                                         }
                                     }else{
-                                        //console.log("returnBlankTile");
                                         tileData = transparentPngUrl;
                                     }
 
-                                    xhr.response = tileData;
-                                    if (!IOS) xhr.response = new window.Blob([base64_to_uint8array(tileData.slice(22))], { type: 'image/png' });
-                                    xhr.responseType="blob";
+                                    if (!IOS) {
+                                      xhr.response = new window.Blob([base64_to_uint8array(tileData.slice(22))], { type: 'image/png' });
+                                      xhr.responseType="blob";
+                                    }else{
+                                      xhr.response = tileData;
+                                      xhr.responseType = "blob";
+                                    }
                                     resolve();
                                 }
 
@@ -2194,6 +2199,17 @@ import TrustedServers from './TrustedServers.js';
             }
             return new Uint8Array(byteNumbers);
         }
+        function b64pngtoBlob(dataURI) {
+
+          var byteString = atob(dataURI.split(',')[1]);
+          var ab = new ArrayBuffer(byteString.length);
+          var ia = new Uint8Array(ab);
+
+          for (var i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+          }
+          return new Blob([ab], { type: 'image/png' });
+        }
     }
 
     var noXMLHttpRequest = typeof XMLHttpRequest === 'undefined';
@@ -2244,8 +2260,7 @@ import TrustedServers from './TrustedServers.js';
                   response = String(xhr.response);
                   xhr.responseText = response;
                 }
-                //console.log(xhr);
-                //console.log(method);
+
                 if ((responseType === 'json') && typeof response === 'string') {
                     try {
                         deferred.resolve(JSON.parse(response));
@@ -2263,22 +2278,16 @@ import TrustedServers from './TrustedServers.js';
 
             xhr.send(data);
             loadWithSqlLite(url, xhr).then(function(e){
-              //console.log("call xhr onload");
               var responseHeaders = {};
-              //console.log(responseType);
               if (responseType == "text") responseHeaders = {"Content-Type": "application/json"};
               if (responseType == "blob") responseHeaders = {"Content-Type": "image/png"};
               if (responseType == "arraybuffer") responseHeaders = {"Content-Type": "application/octet-stream"};
-              //if (url.indexOf("https://offline.air-suite.com") != -1){
-              //console.log(responseHeaders);
               if (xhr.aborted === true){
                   //do nothing
                   xhr.responseText = null;
                   xhr.errorFlag = true;
-                  xhr.requestHeaders = {};
-                  //console.log("db xhr aborted: " + url);
+                  xhr.requestHeaders = {};;
               }else{
-
                 xhr.respond(200,responseHeaders,xhr.response);
 
               }
@@ -2323,7 +2332,6 @@ import TrustedServers from './TrustedServers.js';
 
             var response = xhr.response;
             var browserResponseType = xhr.responseType;
-            //console.log(method);
             if (method === 'HEAD' || method === 'OPTIONS') {
                 var responseHeaderString = xhr.getAllResponseHeaders();
                 var splitHeaders = responseHeaderString.trim().split(/[\r\n]+/);

@@ -45,7 +45,7 @@ import UrlTemplateImageryProvider from './UrlTemplateImageryProvider.js';
         }
         //>>includeEnd('debug');
 
-        var url = url = 'https://offline.air-suite.com/';
+        var url = 'https://offline.air-suite.com/';
         this._url = url;
 
         var resource = Resource.createIfNeeded(url);
@@ -95,7 +95,7 @@ import UrlTemplateImageryProvider from './UrlTemplateImageryProvider.js';
          */
         url : {
             get : function() {
-                return this._url;
+                return this._imageryProvider.url;
             }
         },
 
@@ -336,4 +336,4 @@ import UrlTemplateImageryProvider from './UrlTemplateImageryProvider.js';
 
     // Exposed for tests
     MbtileImageryProvider._defaultCredit = defaultCredit;
-export default MapboxImageryProvider;
+export default MbtileImageryProvider;
